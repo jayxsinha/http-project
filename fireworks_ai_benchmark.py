@@ -35,7 +35,7 @@ async def fireworks_ai_worker(url, qps, payload, headers, results, errors, ttft)
                 errors.append(status)
             await asyncio.sleep(1 / qps)
 
-async def benchmark(url, model, prompt, max_tokens, token, stream, qps, duration):
+async def benchmark(url, model, prompt, max_tokens, token, stream, qps, duration, num_workers):
     payload = {
         "model": model,
         "prompt": prompt,
@@ -64,7 +64,7 @@ async def benchmark(url, model, prompt, max_tokens, token, stream, qps, duration
     tasks = []
     ttft = []
     # Number of concurrent workers based on QPS
-    num_workers = qps
+    # num_workers = qps
     for _ in range(num_workers):
         task = asyncio.create_task(fireworks_ai_worker(url, qps // num_workers, payload, headers, results, errors, ttft))
         tasks.append(task)
@@ -86,6 +86,13 @@ async def benchmark(url, model, prompt, max_tokens, token, stream, qps, duration
     percentile_99 = np.percentile(results, 99)
 
     report = {
+        "config": {
+          "fireworks_payload": payload,
+          "qps": qps,
+          "duration": duration,
+          "url": url,
+          "num_workers": num_workers
+        },
         "total_requests": len(results),
         "errors": len(errors),
         "mean_latency": np.mean(results) if len(results) > 0 else None,
@@ -117,6 +124,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_tokens', default=25, type=int, help='Max Tokens to be generated')
     parser.add_argument('--stream', default=False, type=bool, help='If streaming is to be enabled')
     parser.add_argument('--qps', type=int, default=1, help='Queries per second')
+    parser.add_argument('--num_workers', type=int, required=True, help='Number of workers')
     parser.add_argument('--duration', type=int, default=1, help='Duration of the test in seconds')
 
     args = parser.parse_args()

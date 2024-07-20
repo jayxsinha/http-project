@@ -8,6 +8,7 @@ class LoadTestRequest(BaseModel):
     qps: int
     url: HttpUrl
     duration: int
+    num_workers: int
 
 class FireworksLoadTestRequest(BaseModel):
     token: str
@@ -18,6 +19,7 @@ class FireworksLoadTestRequest(BaseModel):
     prompt: str
     url: HttpUrl
     stream: bool
+    num_workers: int
 app = FastAPI()
 
 @app.get("/")
@@ -28,7 +30,7 @@ def read_root():
 async def perform_load_test(request: LoadTestRequest):
     if request.qps <= 0 or request.duration <= 0:
         raise HTTPException(status_code=400, detail="QPS and duration must be positive integers")
-    report = await benchmark(str(request.url), request.qps, request.duration)
+    report = await benchmark(str(request.url), request.qps, request.duration, request.num_workers)
     return report
 
 @app.post("/fireworks_benchmark")
@@ -36,5 +38,6 @@ async def perform_fireworks_load_test(request: FireworksLoadTestRequest):
     if request.qps <= 0 or request.duration <= 0:
         raise HTTPException(status_code=400, detail="QPS and duration must be positive integers")
     report = await fireworks_benchmark(str(request.url), request.model, request.prompt,
-                                       request.max_tokens, request.token, request.stream, request.qps, request.duration)
+                                       request.max_tokens, request.token, request.stream, request.qps, request.duration,
+                                       request.num_workers)
     return report
