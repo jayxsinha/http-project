@@ -67,6 +67,7 @@ Simply run:
       "timeout": 2
       }'
   ```
+  - Use the `dummy_api.py` to test the below by running: `uvicorn dummy_api:app --port 8081 --reload`
   - Sample Response:
     ```JSON
       {
