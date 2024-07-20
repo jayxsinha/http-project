@@ -13,19 +13,19 @@ async def fetch(session, url, payload, headers, timeout=2):
                     if time_to_first_token is None:
                         time_to_first_token = time.time() - start_time
 
-            latency = time.time() - start_time
+            response_time = time.time() - start_time
             if response.status != 200:
-                return latency, time_to_first_token, response.status, False
-            return latency, time_to_first_token, response.status, True
+                return response_time, time_to_first_token, response.status, False
+            return response_time, time_to_first_token, response.status, True
     except Exception as e:
         print(e)
-        return time.time() - start_time, None, None, False
+        return time.time() - start_time, None, str(e), False
 
 async def fireworks_ai_worker(url, qps, payload, headers, results, errors, ttft, timeout):
     async with aiohttp.ClientSession() as session:
         while True:
-            latency, time_to_first_token, status, success = await fetch(session, url, payload, headers, timeout)
-            results.append(latency)
+            response_time, time_to_first_token, status, success = await fetch(session, url, payload, headers, timeout)
+            results.append(response_time)
 
             if payload['stream']:
                 if time_to_first_token:
@@ -101,12 +101,12 @@ async def benchmark(url, model, prompt, max_tokens, token, stream, qps, duration
         },
         "total_requests": len(results),
         "errors": len(errors),
-        "mean_latency": np.mean(results) if len(results) > 0 else None,
-        "std_latency": np.std(results) if len(results) > 1 else None,
-        "latency_p50": percentile_50,
-        "latency_p90": percentile_90,
-        "latency_p97": percentile_97,
-        "latency_p99": percentile_99,
+        "mean_response_time": np.mean(results) if len(results) > 0 else None,
+        "std_response_time": np.std(results) if len(results) > 1 else None,
+        "response_time_p50": percentile_50,
+        "response_time_p90": percentile_90,
+        "response_time_p97": percentile_97,
+        "response_time_p99": percentile_99,
     }
     if stream:
         report["mean_time_to_first_token"] = np.mean(ttft) if len(ttft) > 0 else None
@@ -116,6 +116,8 @@ async def benchmark(url, model, prompt, max_tokens, token, stream, qps, duration
         report["time_to_first_token_p97"] = np.percentile(ttft, 97) if len(ttft) > 1 else None
         report["time_to_first_token_p99"] = np.percentile(ttft, 99) if len(ttft) > 1 else None
 
+    if len(errors) > 0:
+        report['errors_status'] = list(set(errors))
 
     print(report)
 

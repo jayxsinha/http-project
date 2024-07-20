@@ -15,11 +15,11 @@ class TestBenchmark(asynctest.TestCase):
         mock_get.return_value.__aenter__.return_value = mock_response
 
         async with aiohttp.ClientSession() as session:
-            latency, status, success = await fetch(session, TEST_URL)
+            response_time, status, success = await fetch(session, TEST_URL)
 
         self.assertTrue(success)
         self.assertEqual(status, 200)
-        self.assertIsInstance(latency, float)
+        self.assertIsInstance(response_time, float)
 
     @asynctest.patch('aiohttp.ClientSession.get')
     async def test_fetch_with_error(self, mock_get):
@@ -28,11 +28,11 @@ class TestBenchmark(asynctest.TestCase):
         mock_get.return_value.__aenter__.return_value = mock_response
 
         async with aiohttp.ClientSession() as session:
-            latency, status, success = await fetch(session, TEST_URL)
+            response_time, status, success = await fetch(session, TEST_URL)
 
         self.assertFalse(success)
         self.assertEqual(status, 500)
-        self.assertIsInstance(latency, float)
+        self.assertIsInstance(response_time, float)
 
     async def test_benchmark_report(self):
         url = TEST_URL
@@ -45,16 +45,16 @@ class TestBenchmark(asynctest.TestCase):
 
         self.assertIn('total_requests', report)
         self.assertIn('errors', report)
-        self.assertIn('mean_latency', report)
-        self.assertIn('std_latency', report)
-        self.assertIn('latency_p50', report)
-        self.assertIn('latency_p90', report)
-        self.assertIn('latency_p97', report)
-        self.assertIn('latency_p99', report)
+        self.assertIn('mean_response_time', report)
+        self.assertIn('std_response_time', report)
+        self.assertIn('response_time_p50', report)
+        self.assertIn('response_time_p90', report)
+        self.assertIn('response_time_p97', report)
+        self.assertIn('response_time_p99', report)
 
         self.assertEqual(report['total_requests'], qps * duration)
         self.assertEqual(report['errors'], 0)
-        self.assertAlmostEqual(report['mean_latency'], 0.1, delta=0.01)
+        self.assertAlmostEqual(report['mean_response_time'], 0.1, delta=0.01)
 
 
 if __name__ == '__main__':

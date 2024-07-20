@@ -9,21 +9,21 @@ async def fetch(session, url, timeout=2):
     try:
         async with session.get(url, timeout=timeout) as response:
             # print(response)
-            latency = time.time() - start_time
+            response_time = time.time() - start_time
             if response.status != 200:
-                return latency, response.status, False
-            return latency, response.status, True
+                return response_time, response.status, False
+            return response_time, response.status, True
     except Exception as e:
         print(e)
-        return time.time() - start_time, None, False
+        return time.time() - start_time, str(e), False
 
 
 async def worker(url, qps, results, errors, timeout):
     # print("URL: ", url)
     async with aiohttp.ClientSession() as session:
         while True:
-            latency, status, success = await fetch(session, url, timeout)
-            results.append(latency)
+            response_time, status, success = await fetch(session, url, timeout)
+            results.append(response_time)
 
             if not success:
                 errors.append(status)
@@ -74,13 +74,16 @@ async def benchmark(url, qps, num_workers, duration, timeout):
         },
         "total_requests": len(results),
         "errors": len(errors),
-        "mean_latency": mean(results) if results else None,
-        "std_latency": stdev(results) if len(results) > 1 else None,
-        "latency_p50": percentile_50,
-        "latency_p90": percentile_90,
-        "latency_p97": percentile_97,
-        "latency_p99": percentile_99,
+        "mean_response_time": mean(results) if results else None,
+        "std_response_time": stdev(results) if len(results) > 1 else None,
+        "response_time_p50": percentile_50,
+        "response_time_p90": percentile_90,
+        "response_time_p97": percentile_97,
+        "response_time_p99": percentile_99,
     }
+
+    if len(errors) > 0:
+        report['errors_status'] = list(set(errors))
 
     print(report)
 
