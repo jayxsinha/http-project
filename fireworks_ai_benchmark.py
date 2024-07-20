@@ -97,7 +97,8 @@ async def benchmark(url, model, prompt, max_tokens, token, stream, qps, duration
           "qps": qps,
           "duration": duration,
           "url": url,
-          "num_workers": num_workers
+          "num_workers": num_workers,
+          "timeout": timeout
         },
         "total_requests": len(results),
         "errors": len(errors),

@@ -70,7 +70,8 @@ async def benchmark(url, qps, num_workers, duration, timeout):
             "url": url,
             "qps": qps,
             "duration": duration,
-            "num_workers": num_workers
+            "num_workers": num_workers,
+            "timeout": timeout
         },
         "total_requests": len(results),
         "errors": len(errors),
