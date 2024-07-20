@@ -40,4 +40,13 @@ async def perform_fireworks_load_test(request: FireworksLoadTestRequest):
     report = await fireworks_benchmark(str(request.url), request.model, request.prompt,
                                        request.max_tokens, request.token, request.stream, request.qps, request.duration,
                                        request.num_workers)
+    if len(request.token) == 0:
+        raise HTTPException(status_code=400, detail="Please pass an auth token for FireworksAI API request")
+
+    if request.max_tokens == 0:
+        raise HTTPException(status_code=400, detail="Max tokens should be > 0")
+
+    if len(request.prompt) == 0:
+        raise HTTPException(status_code=400, detail="Please enter a prompt with length > 0")
+
     return report
