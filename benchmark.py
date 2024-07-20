@@ -8,22 +8,27 @@ async def fetch(session, url, timeout=2):
     start_time = time.time()
     try:
         async with session.get(url, timeout=timeout) as response:
+            latency = time.time() - start_time
             # print(response)
+            await response.text()
             response_time = time.time() - start_time
             if response.status != 200:
-                return response_time, response.status, False
-            return response_time, response.status, True
+                return latency, response_time, response.status, False
+            return latency, response_time, response.status, True
     except Exception as e:
         print(e)
-        return time.time() - start_time, str(e), False
+        return None, time.time() - start_time, str(e), False
 
 
-async def worker(url, qps, results, errors, timeout):
+async def worker(url, qps, results, latencies, errors, timeout):
     # print("URL: ", url)
     async with aiohttp.ClientSession() as session:
         while True:
-            response_time, status, success = await fetch(session, url, timeout)
+            latency, response_time, status, success = await fetch(session, url, timeout)
             results.append(response_time)
+
+            if latency:
+                latencies.append(latency)
 
             if not success:
                 errors.append(status)
@@ -36,17 +41,17 @@ async def benchmark(url, qps, num_workers, duration, timeout):
     results = []
     errors = []
     tasks = []
-
+    latencies = []
     # Number of concurrent workers based on QPS
     # num_workers = qps
     for _ in range(num_workers):
         assigned_qps = qps // num_workers
-        task = asyncio.create_task(worker(url, assigned_qps, results, errors, timeout))
+        task = asyncio.create_task(worker(url, assigned_qps, results, latencies, errors, timeout))
         tasks.append(task)
 
     if qps % num_workers > 0:
         assigned_qps = qps % num_workers
-        task = asyncio.create_task(worker(url, assigned_qps, results, errors, timeout))
+        task = asyncio.create_task(worker(url, assigned_qps, results, latencies, errors, timeout))
         tasks.append(task)
 
     await asyncio.sleep(duration)
@@ -60,10 +65,16 @@ async def benchmark(url, qps, num_workers, duration, timeout):
 
         pass
 
-    percentile_50 = np.percentile(results, 50)
-    percentile_90 = np.percentile(results, 90)
-    percentile_97 = np.percentile(results, 97)
-    percentile_99 = np.percentile(results, 99)
+
+    percentile_50 = np.percentile(results, 50) if len(results) > 1 else None
+    percentile_90 = np.percentile(results, 90) if len(results) > 1 else None
+    percentile_97 = np.percentile(results, 97) if len(results) > 1 else None
+    percentile_99 = np.percentile(results, 99) if len(results) > 1 else None
+
+    latency_percentile_50 = np.percentile(latencies, 50) if len(latencies) > 1 else None
+    latency_percentile_90 = np.percentile(latencies, 90) if len(latencies) > 1 else None
+    latency_percentile_97 = np.percentile(latencies, 97) if len(latencies) > 1 else None
+    latency_percentile_99 = np.percentile(latencies, 99) if len(latencies) > 1 else None
 
     report = {
         "config": {
@@ -81,6 +92,13 @@ async def benchmark(url, qps, num_workers, duration, timeout):
         "response_time_p90": percentile_90,
         "response_time_p97": percentile_97,
         "response_time_p99": percentile_99,
+        "mean_latency": mean(latencies) if latencies else None,
+        "std_latency": stdev(latencies) if len(latencies) > 1 else None,
+        "latency_p50": latency_percentile_50,
+        "latency_p90": latency_percentile_90,
+        "latency_p97": latency_percentile_97,
+        "latency_p99": latency_percentile_99,
+
     }
 
     if len(errors) > 0:
