@@ -37,11 +37,11 @@ class TestBenchmark(asynctest.TestCase):
     async def test_benchmark_report(self):
         url = TEST_URL
         qps = 10
-        num_workers = 5
+        num_workers = 4
         duration = 2
-
+        timeout = 2
         with patch('benchmark.fetch', new=asynctest.CoroutineMock(return_value=(0.1, 200, True))):
-            report = await benchmark(url, qps, num_workers, duration)
+            report = await benchmark(url, qps, num_workers, duration, timeout)
 
         self.assertIn('total_requests', report)
         self.assertIn('errors', report)
