@@ -47,7 +47,7 @@ This is an HTTP load testing tool built using Python's `asyncio` and `aiohttp` l
     python <file_name.py> <args> 
     ```
 
-## Running Tests:
+## Running Unit Tests:
 Simply run:
 ```bash
  python -m unittest test_benchmark.py 
