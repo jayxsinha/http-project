@@ -3,12 +3,12 @@
 This is an HTTP load testing tool built using Python's `asyncio` and `aiohttp` libraries. It allows you to benchmark the performance of a given URL by specifying the queries per second (QPS), number of workers, duration, and timeout.
 
 ---
-## Updates: [08/02/2024]
+## Updates: [08/03/2024]
 
 1. The fixed `--qps` logic was incorrect. It was working fine for local APIs; however, when used with FireworksAI API or any other public URL like [this one](https://httpbin.org/get"), the total numbers of requested would not equal `qps * duration`.
   - **Core Issue:** The worker had a logic to timeout with `await asyncio.sleep(duration)` followed by `task.cancel()` which made the worker quit even if there were outgoing requests still waiting to be completed. 
-  - **Fix:** Use `await asyncio.gather()` function to wait for all the requests to complete and then do the final processing for results.
-2. Previous logic indicated that we would need to create an extra worker in case `qps % num_workers > 0`; however, this has been changed to the usual where we assign the first or last worker with the extra `qps % workers`.
+  - **Fix:** Use `await asyncio.gather()` function to wait for all the requests to complete and then do the final processing for results. There is also now a `stop_flag` added as an `asyncio.Event()` which will help terminate the worker process gracefully.
+2. Previous logic indicated that we would need to create an extra worker in case `qps % num_workers > 0`; however, this has been changed to the default implementation where we assign the first or last worker with the extra `qps % workers`.
 
 ---
 
