@@ -19,12 +19,13 @@ async def fetch(session, url, payload, headers, timeout=2):
                 return latency, response_time, time_to_first_token, response.status, False
             return latency, response_time, time_to_first_token, response.status, True
     except Exception as e:
-        print(e)
         return None, time.time() - start_time, None, str(e), False
 
-async def fireworks_ai_worker(url, qps, payload, headers, results, latencies, errors, ttft, timeout):
+async def fireworks_ai_worker(url, qps, duration, payload, headers, results, latencies, errors, ttft, timeout, stop_flag):
+    total_reqs = qps * duration
+    x = 0
     async with aiohttp.ClientSession() as session:
-        while True:
+        while not stop_flag.is_set():
             latency, response_time, time_to_first_token, status, success = await fetch(session, url, payload, headers, timeout)
             results.append(response_time)
 
@@ -37,7 +38,17 @@ async def fireworks_ai_worker(url, qps, payload, headers, results, latencies, er
 
             if not success:
                 errors.append(status)
-            await asyncio.sleep(1 / qps)
+            # await asyncio.sleep(1 / qps)
+            next_request_time = time.time() + 1 / qps
+            sleep_time = max(0, next_request_time - time.time())
+            await asyncio.sleep(sleep_time)
+            x += 1
+            if x == total_reqs:
+                stop_flag.set()
+            # After stop flag is set, any incomplete request should be considered an error
+        while time.time() < next_request_time:
+            errors.append('Request not completed')
+            await asyncio.sleep(0.01)  # Slight delay to prevent a tight loop
 
 async def benchmark(url, model, prompt, max_tokens, token, stream, qps, duration, num_workers, timeout):
     payload = {
@@ -68,28 +79,27 @@ async def benchmark(url, model, prompt, max_tokens, token, stream, qps, duration
     errors = []
     tasks = []
     ttft = []
+    stop_flag = asyncio.Event()  # Use an Event to signal workers to stop
+    start_time = time.time()
     # Number of concurrent workers based on QPS
     # num_workers = qps
-    for _ in range(num_workers):
-        task = asyncio.create_task(fireworks_ai_worker(url, qps // num_workers, payload, headers, results, latencies, errors, ttft, timeout))
+    for _ in range(num_workers-1):
+        assigned_qps = qps // num_workers
+        task = asyncio.create_task(fireworks_ai_worker(url, assigned_qps, duration, payload, headers, results, latencies, errors, ttft, timeout, stop_flag))
         tasks.append(task)
 
-    # Create an additional worker when qps % num_workers > 0
-    if qps % num_workers > 0:
-        task = asyncio.create_task(
-            fireworks_ai_worker(url, qps % num_workers, payload, headers, results, latencies, errors, ttft, timeout))
-        tasks.append(task)
+    # Create last worker useful for when qps % num_workers > 0
+    assigned_qps = qps // num_workers + qps % num_workers
+    task = asyncio.create_task(
+        fireworks_ai_worker(url, assigned_qps, duration, payload, headers, results, latencies, errors, ttft, timeout, stop_flag))
+    tasks.append(task)
 
-    await asyncio.sleep(duration)
 
-    for task in tasks:
-        task.cancel()
-
-    try:
-        await asyncio.gather(*tasks, return_exceptions=True)
-    except asyncio.CancelledError:
-
-        pass
+    # Allow tasks to complete
+    await asyncio.gather(*tasks, return_exceptions=True)
+    await asyncio.sleep(0.05)
+    end_time = time.time()
+    print(f"Time taken: {end_time - start_time}")
 
     percentile_50 = np.percentile(results, 50) if len(results) > 1 else None
     percentile_90 = np.percentile(results, 90) if len(results) > 1 else None
@@ -149,7 +159,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_tokens', default=25, type=int, help='Max Tokens to be generated')
     parser.add_argument('--stream', default=False, type=bool, help='If streaming is to be enabled')
     parser.add_argument('--qps', type=int, default=1, help='Queries per second')
-    parser.add_argument('--timeout', type=int, default=2, help='Timeout duration in seconds')
+    parser.add_argument('--timeout', type=float, default=2, help='Timeout duration in seconds')
     parser.add_argument('--num_workers', type=int, required=True, help='Number of workers')
     parser.add_argument('--duration', type=int, default=1, help='Duration of the test in seconds')
 

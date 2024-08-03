@@ -9,7 +9,7 @@ class LoadTestRequest(BaseModel):
     url: HttpUrl
     duration: int
     num_workers: int
-    timeout: int
+    timeout: float
 
 class FireworksLoadTestRequest(BaseModel):
     token: str
@@ -21,7 +21,7 @@ class FireworksLoadTestRequest(BaseModel):
     url: HttpUrl
     stream: bool
     num_workers: int
-    timeout: int
+    timeout: float
 app = FastAPI()
 
 @app.get("/")

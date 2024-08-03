@@ -2,6 +2,16 @@
 
 This is an HTTP load testing tool built using Python's `asyncio` and `aiohttp` libraries. It allows you to benchmark the performance of a given URL by specifying the queries per second (QPS), number of workers, duration, and timeout.
 
+---
+## Updates: [08/02/2024]
+
+1. The fixed `--qps` logic was incorrect. It was working fine for local APIs; however, when used with FireworksAI API or any other public URL like [this one](https://httpbin.org/get"), the total numbers of requested would not equal `qps * duration`.
+  - **Core Issue:** The worker had a logic to timeout with `await asyncio.sleep(duration)` followed by `task.cancel()` which made the worker quit even if there were outgoing requests still waiting to be completed. 
+  - **Fix:** Use `await asyncio.gather()` function to wait for all the requests to complete and then do the final processing for results.
+2. Previous logic indicated that we would need to create an extra worker in case `qps % num_workers > 0`; however, this has been changed to the usual where we assign the first or last worker with the extra `qps % workers`.
+
+---
+
 ## Features
 
 ### Basic HTTP API Testing
@@ -60,107 +70,113 @@ Simply run:
     curl --location 'http://localhost:8000/benchmark' \
     --header 'Content-Type: application/json' \
     --data '{
-      "url": "http://127.0.0.1:8081",
-      "qps": 20,
-      "duration": 5,
-      "num_workers": 5,
-      "timeout": 2
-      }'
+        "url": "https://httpbin.org/get",
+        "qps": 20,
+        "duration": 5,
+        "num_workers": 20,
+        "timeout": 0.25
+    }'
   ```
   - Use the `dummy_api.py` to test the below by running: `uvicorn dummy_api:app --port 8081 --reload`
-  - Sample Response:
-    ```JSON
+    - Sample Response:
+      ```JSON
       {
-      "config": {
-          "url": "http://127.0.0.1:8081",
+        "config": {
+          "url": "https://httpbin.org/get",
           "qps": 20,
           "duration": 5,
-          "num_workers": 5,
-          "timeout": 2
+          "num_workers": 20,
+          "timeout": 0.25
       },
       "total_requests": 100,
-      "errors": 39,
-      "mean_response_time": 0.003903493881225586,
-      "std_response_time": 0.0010428649754133847,
-      "response_time_p50": 0.00389862060546875,
-      "response_time_p90": 0.005009818077087404,
-      "response_time_p97": 0.006585478782653809,
-      "response_time_p99": 0.006815938949584961,
-      "mean_latency": 0.003873941898345947,
-      "std_latency": 0.0010340470963487607,
-      "latency_p50": 0.003872990608215332,
-      "latency_p90": 0.004974794387817385,
-      "latency_p97": 0.006572837829589844,
-      "latency_p99": 0.006716556549072266,
+      "errors": 10,
+      "mean_response_time": 0.09689875602722169,
+      "std_response_time": 0.08430709021882068,
+      "response_time_p50": 0.03715097904205322,
+      "response_time_p90": 0.2193705320358277,
+      "response_time_p97": 0.2523853826522827,
+      "response_time_p99": 0.25324128866195683,
+      "mean_latency": 0.08327518597893092,
+      "std_latency": 0.07355851797061785,
+      "latency_p50": 0.036652207374572754,
+      "latency_p90": 0.21138486862182618,
+      "latency_p97": 0.21849927425384522,
+      "latency_p99": 0.22762411594390872,
       "errors_status": [
-          400
+          "",
+          "Request not completed"
       ]
-    }
-    ```
-    - To test on Fireworks AI API, use the following `cURL` command:
-        - [NOTE] Field `token` needs to be passed to the request which contains API key from [FireworksAI](https://fireworks.ai/api-keys)
-        ```bash
-        curl --location 'http://localhost:8000/fireworks_benchmark' \
-        --header 'Content-Type: application/json' \
-        --data '{
-          "qps": 10,
-          "duration": 5,
-          "token": "<TOKEN>",
-          "model": "accounts/fireworks/models/llama-v3-8b-instruct-hf",
-          "max_tokens": 25,
-          "prompt": "Snow is white",
-          "url": "https://api.fireworks.ai/inference/v1/completions",
-          "stream": "True",
-          "num_workers": 10,
-          "timeout": 3
-          }'
-        ```
-        - Sample Response:
-          ```JSON
-            {
-          "config": {
-              "fireworks_payload": {
-                  "model": "accounts/fireworks/models/llama-v3-8b-instruct-hf",
-                  "prompt": "Snow is white",
-                  "max_tokens": 25,
-                  "logprobs": 2,
-                  "echo": true,
-                  "temperature": 1,
-                  "top_p": 1,
-                  "top_k": 50,
-                  "frequency_penalty": 0,
-                  "presence_penalty": 0,
-                  "n": 1,
-                  "stop": "<string>",
-                  "stream": true,
-                  "context_length_exceeded_behavior": "truncate",
-                  "user": "<string>"
-              },
-              "qps": 10,
-              "duration": 5,
-              "url": "https://api.fireworks.ai/inference/v1/completions",
-              "num_workers": 10,
-              "timeout": 3
-          },
-          "total_requests": 39,
-          "errors": 0,
-          "mean_response_time": 0.40085672720884663,
-          "std_response_time": 0.09864921629180852,
-          "response_time_p50": 0.3671548366546631,
-          "response_time_p90": 0.5098735809326174,
-          "response_time_p97": 0.5875330686569213,
-          "response_time_p99": 0.5931547546386718,
-          "mean_latency": 0.2112720257196671,
-          "std_latency": 0.08289878373804606,
-          "latency_p50": 0.1700139045715332,
-          "latency_p90": 0.3138469219207764,
-          "latency_p97": 0.3585403203964233,
-          "latency_p99": 0.39097784519195544,
-          "mean_time_to_first_token": 0.2112869054843218,
-          "std_time_to_first_token": 0.08289335907679465,
-          "time_to_first_token_p50": 0.17001795768737793,
-          "time_to_first_token_p90": 0.31385526657104496,
-          "time_to_first_token_p97": 0.35854743003845213,
-          "time_to_first_token_p99": 0.3909831905364989
       }
+      ```
+      - To test on Fireworks AI API, use the following `cURL` command:
+          - [NOTE] Field `token` needs to be passed to the request which contains API key from [FireworksAI](https://fireworks.ai/api-keys)
+          ```bash
+          curl --location 'http://localhost:8000/fireworks_benchmark' \
+          --header 'Content-Type: application/json' \
+          --data '{
+              "qps": 10,
+              "duration":5,
+              "token": "KbtMA1I6TV35O6xjb9zOXRB8vDjI8iNUPFRKq6lESDuOTWJN",
+              "model": "accounts/fireworks/models/llama-v3-8b-instruct-hf",
+              "max_tokens": 25,
+              "prompt": "Snow is white",
+              "url": "https://api.fireworks.ai/inference/v1/completions",
+              "stream": "True",
+              "num_workers": 10,
+              "timeout": 1.5
+          }'
           ```
+          - Sample Response:
+            ```JSON
+              {
+              "config": {
+                  "fireworks_payload": {
+                      "model": "accounts/fireworks/models/llama-v3-8b-instruct-hf",
+                      "prompt": "Snow is white",
+                      "max_tokens": 25,
+                      "logprobs": 2,
+                      "echo": true,
+                      "temperature": 1,
+                      "top_p": 1,
+                      "top_k": 50,
+                      "frequency_penalty": 0,
+                      "presence_penalty": 0,
+                      "n": 1,
+                      "stop": "<string>",
+                      "stream": true,
+                      "context_length_exceeded_behavior": "truncate",
+                      "user": "<string>"
+                  },
+                  "qps": 10,
+                  "duration": 5,
+                  "url": "https://api.fireworks.ai/inference/v1/completions",
+                  "num_workers": 10,
+                  "timeout": 1.5
+              },
+              "total_requests": 50,
+              "errors": 17,
+              "mean_response_time": 1.256036820411682,
+              "std_response_time": 0.24853412813865153,
+              "response_time_p50": 1.35898756980896,
+              "response_time_p90": 1.5038734197616577,
+              "response_time_p97": 1.5060858416557312,
+              "response_time_p99": 1.506537208557129,
+              "mean_latency": 0.46938368853400736,
+              "std_latency": 0.2533548911879965,
+              "latency_p50": 0.4923844337463379,
+              "latency_p90": 0.8658977508544922,
+              "latency_p97": 0.8710399532318115,
+              "latency_p99": 0.8713918018341065,
+              "mean_time_to_first_token": 0.4694188061882468,
+              "std_time_to_first_token": 0.25335066457698385,
+              "time_to_first_token_p50": 0.49241387844085693,
+              "time_to_first_token_p90": 0.8659332036972046,
+              "time_to_first_token_p97": 0.8710464000701904,
+              "time_to_first_token_p99": 0.8713988780975341,
+              "errors_status": [
+                  "",
+                  "Request not completed"
+              ]
+            }
+          ```
+      
