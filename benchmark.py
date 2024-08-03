@@ -18,7 +18,8 @@ async def fetch(session, url, timeout=2):
         return None, time.time() - start_time, str(e), False
 
 
-async def worker(url, qps, duration, results, latencies, errors, timeout, stop_flag):
+async def worker(url, qps, duration, results, latencies, errors, timeout):
+    stop_flag = asyncio.Event()
     total_reqs = qps * duration
     x = 0
     async with aiohttp.ClientSession() as session:
@@ -49,17 +50,16 @@ async def benchmark(url, qps, num_workers, duration, timeout):
     errors = []
     tasks = []
     latencies = []
-    stop_flag = asyncio.Event()  # Use an Event to signal workers to stop
     start_time = time.time()
     # Create and start workers
     for _ in range(num_workers-1):
         assigned_qps = qps // num_workers
-        task = asyncio.create_task(worker(url, assigned_qps, duration, results, latencies, errors, timeout, stop_flag))
+        task = asyncio.create_task(worker(url, assigned_qps, duration, results, latencies, errors, timeout))
         tasks.append(task)
 
 
     assigned_qps = qps // num_workers + qps % num_workers
-    task = asyncio.create_task(worker(url, assigned_qps, duration, results, latencies, errors, timeout, stop_flag))
+    task = asyncio.create_task(worker(url, assigned_qps, duration, results, latencies, errors, timeout))
     tasks.append(task)
 
     # Run the benchmark for the specified duration
@@ -71,7 +71,6 @@ async def benchmark(url, qps, num_workers, duration, timeout):
     await  asyncio.sleep(0.05)
     end_time = time.time()
     print(f"Time taken: {end_time - start_time}")
-
 
     percentile_50 = np.percentile(results, 50) if len(results) > 1 else None
     percentile_90 = np.percentile(results, 90) if len(results) > 1 else None
@@ -121,8 +120,10 @@ if __name__ == '__main__':
     parser.add_argument('--url', type=str, help='The HTTP address to test')
     parser.add_argument('--qps', type=int, required=True, help='Queries per second')
     parser.add_argument('--duration', type=int, default=10, help='Duration of the test in seconds')
-    parser.add_argument('--timeout', type=float, default=2, help='Duration of the timeout in seconds')
-    parser.add_argument('--num_workers', type=int, required=True, help='Number of workers')
+    parser.add_argument('--timeout', type=float, default=0.25, help='Duration of the timeout in seconds')
+    parser.add_argument('--num_workers', type=int, default=None, help='Number of workers')
     args = parser.parse_args()
+    if args.num_workers is None:
+        args.num_workers = args.qps
     asyncio.run(benchmark(args.url, args.qps, args.num_workers, args.duration, args.timeout))
 

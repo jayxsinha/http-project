@@ -32,6 +32,10 @@ def read_root():
 async def perform_load_test(request: LoadTestRequest):
     if request.qps <= 0 or request.duration <= 0 or request.timeout <=0:
         raise HTTPException(status_code=400, detail="QPS, duration and timeout must be positive integers")
+
+    if request.num_workers is None or request.num_workers <= 0:
+        request.num_workers = request.qps
+
     report = await benchmark(str(request.url), request.qps, request.num_workers, request.duration, request.timeout)
     return report
 
@@ -40,14 +44,17 @@ async def perform_fireworks_load_test(request: FireworksLoadTestRequest):
     if request.qps <= 0 or request.duration <= 0:
         raise HTTPException(status_code=400, detail="QPS and duration must be positive integers")
 
-    if len(request.token) == 0:
+    if len(request.token) <= 0:
         raise HTTPException(status_code=400, detail="Please pass an auth token for FireworksAI API request")
 
-    if request.max_tokens == 0:
+    if request.max_tokens <= 0:
         raise HTTPException(status_code=400, detail="Max tokens should be > 0")
 
-    if len(request.prompt) == 0:
+    if len(request.prompt) <= 0:
         raise HTTPException(status_code=400, detail="Please enter a prompt with length > 0")
+
+    if request.num_workers is None or request.num_workers <= 0:
+        request.num_workers = request.qps
 
     report = await fireworks_benchmark(str(request.url), request.model, request.prompt,
                                        request.max_tokens, request.token, request.stream, request.qps, request.duration,

@@ -21,7 +21,8 @@ async def fetch(session, url, payload, headers, timeout=2):
     except Exception as e:
         return None, time.time() - start_time, None, str(e), False
 
-async def fireworks_ai_worker(url, qps, duration, payload, headers, results, latencies, errors, ttft, timeout, stop_flag):
+async def fireworks_ai_worker(url, qps, duration, payload, headers, results, latencies, errors, ttft, timeout):
+    stop_flag = asyncio.Event()  # Use an Event to signal workers to stop
     total_reqs = qps * duration
     x = 0
     async with aiohttp.ClientSession() as session:
@@ -79,19 +80,19 @@ async def benchmark(url, model, prompt, max_tokens, token, stream, qps, duration
     errors = []
     tasks = []
     ttft = []
-    stop_flag = asyncio.Event()  # Use an Event to signal workers to stop
+
     start_time = time.time()
     # Number of concurrent workers based on QPS
     # num_workers = qps
     for _ in range(num_workers-1):
         assigned_qps = qps // num_workers
-        task = asyncio.create_task(fireworks_ai_worker(url, assigned_qps, duration, payload, headers, results, latencies, errors, ttft, timeout, stop_flag))
+        task = asyncio.create_task(fireworks_ai_worker(url, assigned_qps, duration, payload, headers, results, latencies, errors, ttft, timeout))
         tasks.append(task)
 
     # Create last worker useful for when qps % num_workers > 0
     assigned_qps = qps // num_workers + qps % num_workers
     task = asyncio.create_task(
-        fireworks_ai_worker(url, assigned_qps, duration, payload, headers, results, latencies, errors, ttft, timeout, stop_flag))
+        fireworks_ai_worker(url, assigned_qps, duration, payload, headers, results, latencies, errors, ttft, timeout))
     tasks.append(task)
 
 
