@@ -178,5 +178,3 @@ Simply run:
                   "Request not completed"
               ]
             }
-          ```
-      
